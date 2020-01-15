@@ -1,0 +1,37 @@
+# Site settings
+name: Paul Osunbor
+email:infinitynemesis5@gmail.com
+#canonical_url: https:// WordPress.infinitysconcept.com
+keywords: "Web Developer, React, Angular, Bootstrap, Flexbox, JavaScript"
+skills: Web Developer, WordPress developer
+baseurl:
+
+# Social networks usernames (many more available: google-plus, flickr, dribbble, pinterest, instagram, tumblr, linkedin, etc.)
+# You should replace these with your social networks, of course. :)
+social:
+  - title: LinkedIn
+    url: https://www.linkedin.com/Paul/Osunbor
+  - title: twitter
+    url: https://twitter.com/Paul_Osunbor
+    
+# Google webmaster tools
+google_verify:
+
+# https://ssl.bing.com/webmaster/configure/verify/ownership Option 2 content= goes here
+bing_verify:
+
+# Color settings (hex-codes without the leading hash-tag)
+color:
+  primary: 2196F3
+  primary-rgb: "33, 150, 243"
+  secondary: 285172
+  secondary-dark: 29455b
+  section-tout: eaf1f1
+
+
+
+# Build settings
+markdown: kramdown
+permalink: pretty
+
+theme: jekyll-theme-cayman
