@@ -1,0 +1,315 @@
+---
+layout: none
+title: AI Video Generator Agent
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Video Generator Agent</title>
+    <link rel="stylesheet" href="css/ai-video-generator.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fas fa-film"></i>
+                    <span>VideoGen AI</span>
+                </div>
+            </div>
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-view="generator">
+                    <i class="fas fa-magic"></i>
+                    <span>Generator</span>
+                </button>
+                <button class="nav-item" data-view="projects">
+                    <i class="fas fa-folder-open"></i>
+                    <span>Projects</span>
+                </button>
+                <button class="nav-item" data-view="settings">
+                    <i class="fas fa-cog"></i>
+                    <span>Settings</span>
+                </button>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="agent-status">
+                    <span class="status-dot"></span>
+                    <span>Agent Ready</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Bar -->
+            <header class="top-bar">
+                <h1 class="page-title">AI Video Generator Agent</h1>
+                <div class="top-bar-actions">
+                    <button class="btn btn-ghost" id="historyBtn">
+                        <i class="fas fa-history"></i>
+                        History
+                    </button>
+                </div>
+            </header>
+
+            <!-- Generator View -->
+            <div class="view active" id="generatorView">
+                <!-- Prompt Section -->
+                <section class="prompt-section">
+                    <div class="prompt-card">
+                        <h2>Describe Your Video</h2>
+                        <p class="subtitle">Tell the AI agent what kind of video you want to create</p>
+                        <div class="prompt-input-wrapper">
+                            <textarea id="promptInput" placeholder="Example: Create a 30-second explainer video about how solar panels work, with animated diagrams and a friendly narrator voice..." rows="4"></textarea>
+                            <div class="prompt-actions">
+                                <div class="prompt-options">
+                                    <select id="videoDuration">
+                                        <option value="15">15 seconds</option>
+                                        <option value="30" selected>30 seconds</option>
+                                        <option value="60">60 seconds</option>
+                                        <option value="120">2 minutes</option>
+                                    </select>
+                                    <select id="videoStyle">
+                                        <option value="cinematic">Cinematic</option>
+                                        <option value="animated" selected>Animated</option>
+                                        <option value="documentary">Documentary</option>
+                                        <option value="commercial">Commercial</option>
+                                        <option value="educational">Educational</option>
+                                        <option value="social-media">Social Media</option>
+                                    </select>
+                                    <select id="videoResolution">
+                                        <option value="720p">720p</option>
+                                        <option value="1080p" selected>1080p</option>
+                                        <option value="4k">4K</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-primary" id="generateBtn">
+                                    <i class="fas fa-play"></i>
+                                    Generate Video
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Pipeline Section -->
+                <section class="pipeline-section" id="pipelineSection" style="display:none;">
+                    <div class="pipeline-header">
+                        <h2>Agent Pipeline</h2>
+                        <div class="pipeline-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progressFill"></div>
+                            </div>
+                            <span class="progress-text" id="progressText">0%</span>
+                        </div>
+                    </div>
+
+                    <!-- Pipeline Steps -->
+                    <div class="pipeline-steps">
+                        <!-- Step 1: Script -->
+                        <div class="pipeline-step" id="step-script">
+                            <div class="step-header">
+                                <div class="step-indicator">
+                                    <div class="step-icon">
+                                        <i class="fas fa-pen-fancy"></i>
+                                    </div>
+                                    <div class="step-info">
+                                        <h3>Script Generation</h3>
+                                        <span class="step-status">Waiting...</span>
+                                    </div>
+                                </div>
+                                <button class="step-toggle" aria-label="Toggle details">
+                                    <i class="fas fa-chevron-down"></i>
+                                </button>
+                            </div>
+                            <div class="step-content">
+                                <div class="step-output" id="scriptOutput"></div>
+                            </div>
+                        </div>
+
+                        <!-- Step 2: Storyboard -->
+                        <div class="pipeline-step" id="step-storyboard">
+                            <div class="step-header">
+                                <div class="step-indicator">
+                                    <div class="step-icon">
+                                        <i class="fas fa-th-large"></i>
+                                    </div>
+                                    <div class="step-info">
+                                        <h3>Storyboard Creation</h3>
+                                        <span class="step-status">Waiting...</span>
+                                    </div>
+                                </div>
+                                <button class="step-toggle" aria-label="Toggle details">
+                                    <i class="fas fa-chevron-down"></i>
+                                </button>
+                            </div>
+                            <div class="step-content">
+                                <div class="step-output" id="storyboardOutput"></div>
+                            </div>
+                        </div>
+
+                        <!-- Step 3: Scene Generation -->
+                        <div class="pipeline-step" id="step-scenes">
+                            <div class="step-header">
+                                <div class="step-indicator">
+                                    <div class="step-icon">
+                                        <i class="fas fa-image"></i>
+                                    </div>
+                                    <div class="step-info">
+                                        <h3>Scene Generation</h3>
+                                        <span class="step-status">Waiting...</span>
+                                    </div>
+                                </div>
+                                <button class="step-toggle" aria-label="Toggle details">
+                                    <i class="fas fa-chevron-down"></i>
+                                </button>
+                            </div>
+                            <div class="step-content">
+                                <div class="step-output" id="scenesOutput"></div>
+                            </div>
+                        </div>
+
+                        <!-- Step 4: Audio -->
+                        <div class="pipeline-step" id="step-audio">
+                            <div class="step-header">
+                                <div class="step-indicator">
+                                    <div class="step-icon">
+                                        <i class="fas fa-music"></i>
+                                    </div>
+                                    <div class="step-info">
+                                        <h3>Audio & Voiceover</h3>
+                                        <span class="step-status">Waiting...</span>
+                                    </div>
+                                </div>
+                                <button class="step-toggle" aria-label="Toggle details">
+                                    <i class="fas fa-chevron-down"></i>
+                                </button>
+                            </div>
+                            <div class="step-content">
+                                <div class="step-output" id="audioOutput"></div>
+                            </div>
+                        </div>
+
+                        <!-- Step 5: Assembly -->
+                        <div class="pipeline-step" id="step-assembly">
+                            <div class="step-header">
+                                <div class="step-indicator">
+                                    <div class="step-icon">
+                                        <i class="fas fa-video"></i>
+                                    </div>
+                                    <div class="step-info">
+                                        <h3>Video Assembly</h3>
+                                        <span class="step-status">Waiting...</span>
+                                    </div>
+                                </div>
+                                <button class="step-toggle" aria-label="Toggle details">
+                                    <i class="fas fa-chevron-down"></i>
+                                </button>
+                            </div>
+                            <div class="step-content">
+                                <div class="step-output" id="assemblyOutput"></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Preview Section -->
+                <section class="preview-section" id="previewSection" style="display:none;">
+                    <div class="preview-card">
+                        <div class="preview-header">
+                            <h2>Generated Video Preview</h2>
+                            <div class="preview-actions">
+                                <button class="btn btn-ghost" id="regenerateBtn">
+                                    <i class="fas fa-redo"></i> Regenerate
+                                </button>
+                                <button class="btn btn-primary" id="downloadBtn">
+                                    <i class="fas fa-download"></i> Download
+                                </button>
+                            </div>
+                        </div>
+                        <div class="video-preview" id="videoPreview">
+                            <div class="video-player">
+                                <canvas id="videoCanvas" width="1280" height="720"></canvas>
+                                <div class="player-controls">
+                                    <button class="player-btn" id="playPauseBtn">
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                    <div class="player-timeline">
+                                        <div class="timeline-bar">
+                                            <div class="timeline-progress" id="timelineProgress"></div>
+                                        </div>
+                                    </div>
+                                    <span class="player-time" id="playerTime">0:00 / 0:30</span>
+                                    <button class="player-btn" id="fullscreenBtn">
+                                        <i class="fas fa-expand"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="video-details" id="videoDetails"></div>
+                    </div>
+                </section>
+
+                <!-- Agent Log -->
+                <section class="agent-log-section" id="agentLogSection" style="display:none;">
+                    <div class="log-header">
+                        <h3><i class="fas fa-terminal"></i> Agent Activity Log</h3>
+                        <button class="btn btn-ghost btn-sm" id="clearLogBtn">Clear</button>
+                    </div>
+                    <div class="log-entries" id="logEntries"></div>
+                </section>
+            </div>
+
+            <!-- Projects View -->
+            <div class="view" id="projectsView">
+                <div class="projects-grid" id="projectsGrid">
+                    <div class="empty-state">
+                        <i class="fas fa-film"></i>
+                        <h3>No projects yet</h3>
+                        <p>Generate your first video to see it here</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings View -->
+            <div class="view" id="settingsView">
+                <div class="settings-card">
+                    <h2>API Configuration</h2>
+                    <p class="subtitle">Connect your AI service API keys to enable video generation</p>
+                    <div class="settings-group">
+                        <label>AI Text Model API Key</label>
+                        <input type="password" id="textApiKey" placeholder="Enter your AI text model API key">
+                        <small>Used for script generation and storyboarding</small>
+                    </div>
+                    <div class="settings-group">
+                        <label>AI Image Model API Key</label>
+                        <input type="password" id="imageApiKey" placeholder="Enter your AI image model API key">
+                        <small>Used for scene and frame generation</small>
+                    </div>
+                    <div class="settings-group">
+                        <label>TTS API Key</label>
+                        <input type="password" id="ttsApiKey" placeholder="Enter your text-to-speech API key">
+                        <small>Used for voiceover narration</small>
+                    </div>
+                    <div class="settings-actions">
+                        <button class="btn btn-primary" id="saveSettingsBtn">
+                            <i class="fas fa-save"></i> Save Settings
+                        </button>
+                        <label class="demo-toggle">
+                            <input type="checkbox" id="demoMode" checked>
+                            <span>Demo Mode (simulated generation)</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/ai-video-generator.js"></script>
+</body>
+</html>
