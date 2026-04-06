@@ -3,3 +3,14 @@ _site/
 .jekyll-metadata
 .DS_Store
 *~
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+venv/
+*.egg-info/
+
+# Lead agent output
+reports_output/
