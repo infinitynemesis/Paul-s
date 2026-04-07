@@ -280,21 +280,21 @@ title: AI Video Generator Agent
             <div class="view" id="settingsView">
                 <div class="settings-card">
                     <h2>API Configuration</h2>
-                    <p class="subtitle">Connect your AI service API keys to enable video generation</p>
+                    <p class="subtitle">Connect OpenAI API keys to enable real video generation. You can use the same key in all three fields, or different keys.</p>
                     <div class="settings-group">
-                        <label>AI Text Model API Key</label>
-                        <input type="password" id="textApiKey" placeholder="Enter your AI text model API key">
-                        <small>Used for script generation and storyboarding</small>
+                        <label>OpenAI Key — Script (gpt-4o-mini)</label>
+                        <input type="password" id="textApiKey" placeholder="sk-...">
+                        <small>Used for script generation via Chat Completions API</small>
                     </div>
                     <div class="settings-group">
-                        <label>AI Image Model API Key</label>
-                        <input type="password" id="imageApiKey" placeholder="Enter your AI image model API key">
-                        <small>Used for scene and frame generation</small>
+                        <label>OpenAI Key — Images (gpt-image-1)</label>
+                        <input type="password" id="imageApiKey" placeholder="sk-...">
+                        <small>Used for scene image generation via Images API</small>
                     </div>
                     <div class="settings-group">
-                        <label>TTS API Key</label>
-                        <input type="password" id="ttsApiKey" placeholder="Enter your text-to-speech API key">
-                        <small>Used for voiceover narration</small>
+                        <label>OpenAI Key — Voiceover (gpt-4o-mini-tts)</label>
+                        <input type="password" id="ttsApiKey" placeholder="sk-...">
+                        <small>Used for narration via Audio Speech API</small>
                     </div>
                     <div class="settings-actions">
                         <button class="btn btn-primary" id="saveSettingsBtn">

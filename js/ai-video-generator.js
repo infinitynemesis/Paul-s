@@ -15,11 +15,97 @@
     playbackDuration: 30,
     scenes: [],
     script: '',
+    sceneImages: [], // {img: HTMLImageElement} per scene when real API used
+    audioBlob: null,
+    audioUrl: null,
+    videoBlob: null,
     projects: JSON.parse(localStorage.getItem('videogen_projects') || '[]'),
     settings: JSON.parse(localStorage.getItem('videogen_settings') || '{}'),
     animationFrame: null,
     playerInterval: null,
   };
+
+  // ── Real API Calls (OpenAI) ──
+  // All three keys can be the same OpenAI key, or different keys per service.
+  const api = {
+    async chat(prompt, key) {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You are a professional video script writer. Respond ONLY with valid JSON (no markdown, no code fences) matching this schema: {"title": string, "scenes": [{"id": number, "type": string, "title": string, "description": string, "duration": number, "narration": string, "visual_prompt": string}]}',
+            },
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.8,
+          response_format: { type: 'json_object' },
+        }),
+      });
+      if (!res.ok) throw new Error(`Chat API ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      const data = await res.json();
+      return JSON.parse(data.choices[0].message.content);
+    },
+
+    async image(prompt, key) {
+      const res = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-image-1',
+          prompt: prompt.slice(0, 1000),
+          size: '1536x1024',
+          n: 1,
+        }),
+      });
+      if (!res.ok) throw new Error(`Image API ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      const data = await res.json();
+      const b64 = data.data[0].b64_json;
+      return 'data:image/png;base64,' + b64;
+    },
+
+    async tts(text, key) {
+      const res = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini-tts',
+          voice: 'alloy',
+          input: text.slice(0, 4000),
+          format: 'mp3',
+        }),
+      });
+      if (!res.ok) throw new Error(`TTS API ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      return await res.blob();
+    },
+  };
+
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+
+  function isDemoMode() {
+    return state.settings.demoMode !== false;
+  }
 
   // ── DOM refs ──
   const $ = (sel) => document.querySelector(sel);
@@ -295,9 +381,39 @@
     const output = $('#scriptOutput');
     output.innerHTML = '';
 
-    await sleep(800);
+    let script;
+    const key = state.settings.textApiKey;
 
-    const script = generateScript(prompt, style, parseInt(duration));
+    if (!isDemoMode() && key) {
+      log('Calling OpenAI chat API for script...', 'info');
+      try {
+        const fullPrompt = `Create a ${duration}-second ${style}-style video script. User request: "${prompt}". Generate ${Math.max(3, Math.floor(duration / 10))} scenes. Each scene must include a vivid visual_prompt suitable for an image generator.`;
+        const apiScript = await api.chat(fullPrompt, key);
+        // Normalize to internal scene format
+        script = {
+          title: apiScript.title || `Video: ${prompt.slice(0, 50)}`,
+          scenes: (apiScript.scenes || []).map((s, i) => ({
+            id: s.id || i + 1,
+            type: s.type || 'Scene',
+            title: s.title || `Scene ${i + 1}`,
+            description: s.description || '',
+            duration: s.duration || Math.round(duration / apiScript.scenes.length),
+            narration: s.narration || '',
+            visual_prompt: s.visual_prompt || s.description || '',
+            style,
+            elements: 8,
+            seed: Math.floor(Math.random() * 10000),
+          })),
+        };
+        log(`Real script received: ${script.scenes.length} scenes`, 'success');
+      } catch (e) {
+        log(`Script API failed, using demo: ${e.message}`, 'warn');
+        script = generateScript(prompt, style, parseInt(duration));
+      }
+    } else {
+      await sleep(800);
+      script = generateScript(prompt, style, parseInt(duration));
+    }
     state.script = script;
 
     const text = `Title: ${script.title}\nStyle: ${style}\nDuration: ${duration}s\nScenes: ${script.scenes.length}\n\n` +
@@ -342,20 +458,41 @@
     output.innerHTML = '';
 
     state.scenes = [];
+    state.sceneImages = [];
+
+    const key = state.settings.imageApiKey;
+    const useReal = !isDemoMode() && key;
 
     for (const scene of state.script.scenes) {
       const card = document.createElement('div');
       card.className = 'scene-card';
-      card.innerHTML = `<h4>${scene.title}</h4><p>${scene.description}</p><p><span class="spinner"></span>Generating frames...</p>`;
+      card.innerHTML = `<h4>${scene.title}</h4><p>${scene.description}</p><p><span class="spinner"></span>${useReal ? 'Calling image API...' : 'Generating frames...'}</p>`;
       output.appendChild(card);
 
-      await sleep(700);
+      let img = null;
+      if (useReal) {
+        try {
+          const visual = scene.visual_prompt || scene.description || scene.title;
+          const dataUrl = await api.image(`${visual}. Style: ${style}, cinematic, high quality.`, key);
+          img = await loadImage(dataUrl);
+          log(`Scene ${scene.id} image generated`, 'success');
+
+          // Show thumbnail
+          const thumb = document.createElement('img');
+          thumb.src = dataUrl;
+          thumb.style.cssText = 'width:100%;max-width:400px;border-radius:8px;margin-top:10px;';
+          card.appendChild(thumb);
+        } catch (e) {
+          log(`Scene ${scene.id} image failed: ${e.message}`, 'warn');
+        }
+      } else {
+        await sleep(700);
+      }
 
       state.scenes.push(scene);
-      card.querySelector('p:last-child').innerHTML =
-        `<span style="color:var(--success);">&#10003;</span> ${scene.elements} frames generated`;
-
-      log(`Scene ${scene.id} rendered: ${scene.elements} frames`, 'info');
+      state.sceneImages.push(img);
+      card.querySelector('p:nth-of-type(2)').innerHTML =
+        `<span style="color:var(--success);">&#10003;</span> ${img ? 'Image generated' : scene.elements + ' procedural frames'}`;
     }
 
     log(`All ${state.scenes.length} scenes generated`, 'success');
@@ -366,32 +503,52 @@
     const output = $('#audioOutput');
     output.innerHTML = '';
 
-    await sleep(500);
-    await typeText(
-      output,
-      'Synthesizing narrator voiceover...\nAnalyzing speech pacing and timing...\n'
-    );
+    // Cleanup prior audio
+    if (state.audioUrl) URL.revokeObjectURL(state.audioUrl);
+    state.audioBlob = null;
+    state.audioUrl = null;
 
-    await sleep(600);
+    const key = state.settings.ttsApiKey;
+    const useReal = !isDemoMode() && key;
 
-    const waveContainer = document.createElement('div');
-    waveContainer.className = 'waveform-container';
-    const wCanvas = document.createElement('canvas');
-    wCanvas.width = 800;
-    wCanvas.height = 60;
-    waveContainer.appendChild(wCanvas);
-    output.appendChild(waveContainer);
+    if (useReal) {
+      const fullText = state.script.scenes.map((s) => s.narration).filter(Boolean).join(' ');
+      log('Calling OpenAI TTS API...', 'info');
+      try {
+        const blob = await api.tts(fullText, key);
+        state.audioBlob = blob;
+        state.audioUrl = URL.createObjectURL(blob);
 
-    drawWaveform(wCanvas);
-
-    await sleep(400);
+        const audio = document.createElement('audio');
+        audio.controls = true;
+        audio.src = state.audioUrl;
+        audio.style.cssText = 'width:100%;margin-top:12px;';
+        output.appendChild(audio);
+        log('TTS audio generated', 'success');
+      } catch (e) {
+        log(`TTS failed: ${e.message}`, 'warn');
+      }
+    } else {
+      await sleep(500);
+      await typeText(output, 'Synthesizing narrator voiceover...\nAnalyzing speech pacing and timing...\n');
+      await sleep(600);
+      const waveContainer = document.createElement('div');
+      waveContainer.className = 'waveform-container';
+      const wCanvas = document.createElement('canvas');
+      wCanvas.width = 800;
+      wCanvas.height = 60;
+      waveContainer.appendChild(wCanvas);
+      output.appendChild(waveContainer);
+      drawWaveform(wCanvas);
+      await sleep(400);
+    }
 
     const info = document.createElement('p');
     info.style.marginTop = '12px';
-    info.textContent = `Audio track: ${state.playbackDuration}s voiceover + ambient background music`;
+    info.textContent = `Audio track: ${state.playbackDuration}s narration`;
     output.appendChild(info);
 
-    log('Audio generation complete', 'success');
+    log('Audio step complete', 'success');
   }
 
   async function stepAssembly(resolution) {
@@ -399,23 +556,90 @@
     const output = $('#assemblyOutput');
     output.innerHTML = '';
 
-    const tasks = [
-      'Compositing scene layers...',
-      'Applying transitions and effects...',
-      'Synchronizing audio tracks...',
-      `Encoding at ${resolution}...`,
-      'Finalizing output...',
-    ];
+    state.videoBlob = null;
 
-    for (const task of tasks) {
-      const p = document.createElement('p');
-      p.innerHTML = `<span class="spinner"></span>${task}`;
-      output.appendChild(p);
-      await sleep(600);
-      p.innerHTML = `<span style="color:var(--success);">&#10003;</span> ${task.replace('...', ' — done')}`;
+    const canRecord = typeof MediaRecorder !== 'undefined' && dom.videoCanvas.captureStream;
+
+    if (canRecord) {
+      try {
+        const status = document.createElement('p');
+        status.innerHTML = '<span class="spinner"></span>Recording video via MediaRecorder...';
+        output.appendChild(status);
+
+        const fps = 30;
+        const stream = dom.videoCanvas.captureStream(fps);
+
+        // Mix audio if available
+        let audioEl = null;
+        if (state.audioUrl) {
+          try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            const ac = new AudioCtx();
+            audioEl = new Audio(state.audioUrl);
+            audioEl.crossOrigin = 'anonymous';
+            const src = ac.createMediaElementSource(audioEl);
+            const dest = ac.createMediaStreamDestination();
+            src.connect(dest);
+            src.connect(ac.destination);
+            dest.stream.getAudioTracks().forEach((t) => stream.addTrack(t));
+          } catch (e) {
+            log(`Audio mux skipped: ${e.message}`, 'warn');
+          }
+        }
+
+        const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+          ? 'video/webm;codecs=vp9,opus'
+          : 'video/webm';
+        const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 4_000_000 });
+        const chunks = [];
+        recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+
+        const finished = new Promise((resolve) => (recorder.onstop = resolve));
+        recorder.start();
+        if (audioEl) audioEl.play().catch(() => {});
+
+        // Render scenes timed to playbackDuration
+        const totalMs = state.playbackDuration * 1000;
+        const sceneMs = totalMs / state.scenes.length;
+        const startedAt = performance.now();
+
+        await new Promise((resolve) => {
+          function tick() {
+            const elapsed = performance.now() - startedAt;
+            if (elapsed >= totalMs) return resolve();
+            renderPlayerFrame(elapsed / 1000);
+            requestAnimationFrame(tick);
+          }
+          tick();
+        });
+
+        recorder.stop();
+        if (audioEl) audioEl.pause();
+        await finished;
+
+        state.videoBlob = new Blob(chunks, { type: 'video/webm' });
+        status.innerHTML = `<span style="color:var(--success);">&#10003;</span> Video recorded (${(state.videoBlob.size / 1024 / 1024).toFixed(2)} MB)`;
+        log(`Video assembled: ${(state.videoBlob.size / 1024 / 1024).toFixed(2)} MB WebM`, 'success');
+      } catch (e) {
+        log(`Recording failed: ${e.message}`, 'error');
+      }
+    } else {
+      const tasks = [
+        'Compositing scene layers...',
+        'Applying transitions and effects...',
+        'Synchronizing audio tracks...',
+        `Encoding at ${resolution}...`,
+        'Finalizing output...',
+      ];
+      for (const task of tasks) {
+        const p = document.createElement('p');
+        p.innerHTML = `<span class="spinner"></span>${task}`;
+        output.appendChild(p);
+        await sleep(600);
+        p.innerHTML = `<span style="color:var(--success);">&#10003;</span> ${task.replace('...', ' — done')}`;
+      }
+      log(`Video assembled at ${resolution} (simulated)`, 'success');
     }
-
-    log(`Video assembled at ${resolution}`, 'success');
   }
 
   // ── Preview ──
@@ -459,8 +683,37 @@
       state.scenes.length - 1
     );
     const scene = state.scenes[sceneIdx];
+    const realImg = state.sceneImages[sceneIdx];
 
-    drawSceneFrame(ctx, w, h, scene, time);
+    if (realImg) {
+      // Cover-fit the generated image
+      const ir = realImg.width / realImg.height;
+      const cr = w / h;
+      let dw, dh, dx, dy;
+      if (ir > cr) {
+        dh = h;
+        dw = h * ir;
+        dx = (w - dw) / 2;
+        dy = 0;
+      } else {
+        dw = w;
+        dh = w / ir;
+        dx = 0;
+        dy = (h - dh) / 2;
+      }
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(realImg, dx, dy, dw, dh);
+
+      // Subtle Ken Burns zoom for life
+      const sceneDur2 = state.playbackDuration / state.scenes.length;
+      const localT = (time % sceneDur2) / sceneDur2;
+      const zoom = 1 + localT * 0.05;
+      // (zoom is visual flourish; skip transform reset for simplicity)
+      void zoom;
+    } else {
+      drawSceneFrame(ctx, w, h, scene, time);
+    }
 
     // Progress overlay
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
@@ -632,16 +885,26 @@
       );
     });
 
-    // Download (simulated)
+    // Download (real video if available, otherwise PNG frame)
     dom.downloadBtn.addEventListener('click', () => {
-      dom.videoCanvas.toBlob((blob) => {
-        const url = URL.createObjectURL(blob);
+      if (state.videoBlob) {
+        const url = URL.createObjectURL(state.videoBlob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'ai-generated-video-frame.png';
+        a.download = `ai-video-${Date.now()}.webm`;
         a.click();
-        URL.revokeObjectURL(url);
-      });
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        log('Video downloaded', 'success');
+      } else {
+        dom.videoCanvas.toBlob((blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'ai-generated-video-frame.png';
+          a.click();
+          URL.revokeObjectURL(url);
+        });
+      }
     });
 
     // Clear log
